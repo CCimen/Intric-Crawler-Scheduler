@@ -11,7 +11,7 @@ cleanup() {
 trap cleanup ERR
 
 # Validate target directory
-TARGET_DIR=${1:-/opt/crawler}
+TARGET_DIR=${1:-$(pwd)/deployment}
 if [ ! -w $(dirname $TARGET_DIR) ]; then
     echo "Error: Cannot write to target directory" >&2
     exit 1
@@ -35,13 +35,8 @@ if [ ! -f .env ]; then
 fi
 
 # Create directory
-if ! sudo mkdir -p $TARGET_DIR; then
+if ! mkdir -p $TARGET_DIR; then
     echo "Error: Failed to create target directory" >&2
-    exit 1
-fi
-
-if ! sudo chown -R $USER:$USER $TARGET_DIR; then
-    echo "Error: Failed to set directory ownership" >&2
     exit 1
 fi
 
@@ -52,7 +47,8 @@ if ! cp {crawler.py,requirements.txt,.env} $TARGET_DIR; then
 fi
 
 # Create systemd service
-sudo tee /etc/systemd/system/crawler.service <<EOF
+mkdir -p $TARGET_DIR/systemd
+tee $TARGET_DIR/systemd/crawler.service <<EOF
 [Unit]
 Description=Website Crawler Service
 After=network.target
@@ -68,9 +64,34 @@ Environment="PATH=$TARGET_DIR/venv/bin:/usr/bin"
 WantedBy=multi-user.target
 EOF
 
+# Check for venv capability
+if ! python3 -c "import ensurepip" &> /dev/null; then
+    echo "Python venv module is not available"
+    echo "Attempting to install python3-venv..."
+    
+    if command -v apt &> /dev/null; then
+        if sudo apt update && sudo apt install -y python3-venv; then
+            echo "python3-venv installed successfully"
+        else
+            echo "Error: Failed to install python3-venv" >&2
+            echo "Please install it manually with:" >&2
+            echo "sudo apt install python3-venv" >&2
+            exit 1
+        fi
+    else
+        echo "Error: Could not detect apt package manager" >&2
+        echo "Please install python3-venv using your system's package manager" >&2
+        exit 1
+    fi
+fi
+
 # Setup virtual environment
+echo "Creating virtual environment..."
 if ! python3 -m venv $TARGET_DIR/venv; then
     echo "Error: Failed to create virtual environment" >&2
+    echo "This might be due to missing python3-venv package" >&2
+    echo "On Debian/Ubuntu systems, install it with:" >&2
+    echo "sudo apt install python3-venv" >&2
     exit 1
 fi
 
@@ -82,22 +103,15 @@ fi
 # Secure permissions
 chmod 600 $TARGET_DIR/.env
 
-# Reload systemd
-if ! sudo systemctl daemon-reload; then
-    echo "Error: Failed to reload systemd" >&2
-    exit 1
-fi
+echo -e "\n\033[1;36m=== Deployment Instructions ===\033[0m"
+echo -e "\033[1;36mSystemd service file created at $TARGET_DIR/systemd/crawler.service\033[0m"
+echo -e "\n\033[1;36mTo enable the service, run these commands:\033[0m"
+echo -e "\033[1;36m1. sudo cp $TARGET_DIR/systemd/crawler.service /etc/systemd/system/\033[0m"
+echo -e "\033[1;36m2. sudo systemctl daemon-reload\033[0m"
+echo -e "\033[1;36m3. sudo systemctl enable crawler\033[0m"
+echo -e "\033[1;36m4. sudo systemctl start crawler\033[0m"
 
-if ! sudo systemctl enable crawler; then
-    echo "Error: Failed to enable service" >&2
-    exit 1
-fi
-
-if ! sudo systemctl start crawler; then
-    echo "Error: Failed to start service" >&2
-    exit 1
-fi
-
-echo "Deployment complete. Manage with:"
-echo "sudo systemctl status crawler"
-echo "sudo journalctl -u crawler -f"
+echo -e "\n\033[1;36m=== Management Commands ===\033[0m"
+echo -e "\033[1;36m• Check status: sudo systemctl status crawler\033[0m"
+echo -e "\033[1;36m• View logs: sudo journalctl -u crawler -f\033[0m"
+echo -e "\033[1;36m\nDeployment complete!\033[0m"
