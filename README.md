@@ -87,9 +87,6 @@ This project includes a deployment script, `deploy.sh`, which **automatically cr
     cp .example.env .env
     nano .env  # Edit with your actual credentials/URLs
     ```
-
-Below is an updated snippet for steps **4**, **5**, and **6** in your **Deployment (Linux Server)** section, including a note about permissions for `/opt/crawler` or other directories outside the user’s home.
-
 ---
 
 4. **Run the deployment script**:
