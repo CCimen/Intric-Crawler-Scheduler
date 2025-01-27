@@ -88,12 +88,17 @@ This project includes a deployment script, `deploy.sh`, which **automatically cr
     nano .env  # Edit with your actual credentials/URLs
     ```
 
+Below is an updated snippet for steps **4**, **5**, and **6** in your **Deployment (Linux Server)** section, including a note about permissions for `/opt/crawler` or other directories outside the user’s home.
+
+---
+
 4. **Run the deployment script**:
     ```bash
     chmod +x deploy.sh
-    ./deploy.sh /opt/crawler
+    ./deploy.sh ~/crawler
     ```
-    - You can provide a custom path (e.g., `/opt/crawler`); otherwise, it defaults to a `deployment` folder inside the current directory.
+    - You can provide a custom path (for example, `~/crawler` or `/opt/crawler`); otherwise, it defaults to a `deployment` folder inside the current directory.
+    - **Note**: If you choose `/opt/crawler` or any other directory outside your user’s home, ensure you have write permissions there (e.g., create and change ownership). Otherwise, the script will fail with “Cannot write to target directory.”
     - The script will:
       - Copy necessary files (`crawler.py`, `requirements.txt`, `.env`) into the target directory.
       - Create a **virtual environment** at `$TARGET_DIR/venv`.
@@ -103,7 +108,7 @@ This project includes a deployment script, `deploy.sh`, which **automatically cr
 5. **Enable and start the service**:
     1. **Copy the service file** to systemd:
         ```bash
-        sudo cp /opt/crawler/systemd/crawler.service /etc/systemd/system/
+        sudo cp ~/crawler/systemd/crawler.service /etc/systemd/system/
         ```
     2. **Reload systemd**:
         ```bash
@@ -128,6 +133,7 @@ This project includes a deployment script, `deploy.sh`, which **automatically cr
       sudo journalctl -u crawler -f
       ```
 
+> Adjust the directory paths (`~/crawler` vs. `/opt/crawler`) as appropriate for your environment and permissions.
 ---
 
 ## Configuration
