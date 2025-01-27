@@ -12,11 +12,48 @@ A scheduled website crawler with enhanced error handling and status monitoring.
 
 ---
 
+## Requirements
+
+- **Python 3** (with `python3-venv` installed for virtual environments)
+- **systemd** (for deployment on most modern Linux distros)
+- **pip** (to install Python packages)
+- For local usage: Ability to create and activate a virtual environment (`venv`)
+- For server deployment: Sufficient permissions to write to the target directory (e.g. `/opt/crawler` or any user-owned folder like `~/crawler`)
+
+---
+
+## Configuration
+
+All application settings reside in a `.env` file. A sample configuration is provided:
+
+```bash
+cp .example.env .env
+nano .env
+```
+
+The `.env` file holds necessary environment variables:
+
+```env
+# Required
+API_KEY=xxxxx
+BASE_URL=https://sundsvall.backend.intric.ai/api/v1
+
+# How often to run the crawler (in minutes)
+SCHEDULE_MINUTES=5
+
+# Websites to crawl (comma-separated)
+WEBSITE_FILTER=https://example.com/article
+```
+
+> **Note:** 
+> - Make sure your API key follows the expected format (if your code checks that it starts with `inp_`).  
+> - Adjust the `BASE_URL`, `SCHEDULE_MINUTES`, and `WEBSITE_FILTER` as needed.
+
+---
+
 ## Quick Start (Local Development)
 
-> **Important:** Modern Linux distributions often protect the system Python installation.  
-> Installing packages with `pip` at the system level (without a virtual environment)  
-> can cause conflicts and trigger errors like **"externally-managed-environment"**.
+> **Important:** Modern Linux distributions often protect the system Python installation. Installing packages with `pip` at the system level can trigger "externally-managed-environment" errors. Instead, use a **virtual environment**.
 
 1. **Clone the repository**:
     ```bash
@@ -29,30 +66,30 @@ A scheduled website crawler with enhanced error handling and status monitoring.
     python3 -m venv venv
     source venv/bin/activate
     ```
-    - If you don’t have `python3-venv`, install it (for Ubuntu/Debian) with:
+    - If `python3-venv` isn’t available, install it (e.g., on Ubuntu/Debian):
       ```bash
       sudo apt update
       sudo apt install python3-venv
       ```
 
-3. **Install requirements**:
+3. **Install Python dependencies**:
     ```bash
     pip install --upgrade pip  # optional but recommended
     pip install -r requirements.txt
     ```
 
-4. **Configure your environment**:
+4. **Set up your environment (.env file)**:
     ```bash
     cp .example.env .env
-    nano .env  # Edit .env with your configuration
+    nano .env  # Edit your configuration
     ```
 
 5. **Test the script locally**:
-    - **Single execution** (test mode):
+    - **Single (test) execution**:
       ```bash
       python crawler.py --test
       ```
-    - **Scheduled crawling**:
+    - **Scheduled crawling** (runs periodically):
       ```bash
       python crawler.py
       ```
@@ -61,92 +98,6 @@ A scheduled website crawler with enhanced error handling and status monitoring.
     ```bash
     deactivate
     ```
-
----
-
-## Deployment (Linux Server)
-
-This project includes a deployment script, `deploy.sh`, which **automatically creates a virtual environment** in your deployment folder and sets up a systemd service. This way, you don’t have to worry about conflicts with the system Python.
-
-1. **Make sure you have the required packages**:
-    - **Python 3**, including the `venv` module:
-      ```bash
-      sudo apt update
-      sudo apt install python3 python3-venv
-      ```
-    - **systemd** (most modern Linux distros include this by default).
-
-2. **Clone the repository**:
-    ```bash
-    git clone https://github.com/CCimen/IntricCrawlerScript.git
-    cd IntricCrawlerScript
-    ```
-
-3. **Create and configure `.env`**:
-    ```bash
-    cp .example.env .env
-    nano .env  # Edit with your actual credentials/URLs
-    ```
-
-4. **Run the deployment script**:
-    ```bash
-    chmod +x deploy.sh
-    ./deploy.sh ~/crawler
-    ```
-    - You can provide a custom path (for example, `~/crawler` or `/opt/crawler`); otherwise, it defaults to a `deployment` folder inside the current directory.
-    - **Note**: If you choose `/opt/crawler` or any other directory outside your user’s home, ensure you have write permissions there (e.g., create and change ownership). Otherwise, the script will fail with “Cannot write to target directory.”
-    - The script will:
-      - Copy necessary files (`crawler.py`, `requirements.txt`, `.env`) into the target directory.
-      - Create a **virtual environment** at `$TARGET_DIR/venv`.
-      - Install the dependencies (`pip install -r requirements.txt`).
-      - Generate a systemd service file in `$TARGET_DIR/systemd/crawler.service`.
-
-5. **Enable and start the service**:
-    1. **Copy the service file** to systemd:
-        ```bash
-        sudo cp ~/crawler/systemd/crawler.service /etc/systemd/system/
-        ```
-    2. **Reload systemd**:
-        ```bash
-        sudo systemctl daemon-reload
-        ```
-    3. **Enable the service** (so it starts on boot):
-        ```bash
-        sudo systemctl enable crawler
-        ```
-    4. **Start the service**:
-        ```bash
-        sudo systemctl start crawler
-        ```
-
-6. **Check status and logs**:
-    - **Service status**:
-      ```bash
-      sudo systemctl status crawler
-      ```
-    - **View logs** (follow mode):
-      ```bash
-      sudo journalctl -u crawler -f
-      ```
-
-> Adjust the directory paths (`~/crawler` vs. `/opt/crawler`) as appropriate for your environment and permissions.
----
-
-## Configuration
-
-The `.env` file holds all necessary configuration variables:
-
-```env
-# Required
-API_KEY=xxxxx
-BASE_URL=https://sundsvall.backend.intric.ai/api/v1
-
-# How often to run the crawler (in minutes)
-SCHEDULE_MINUTES=5
-
-# Websites to crawl (comma-separated)
-WEBSITE_FILTER=https://sundsvall.se/nyheter/nyhetsarkiv/2025-01-22-har-iordningstalls-ny-lokal-vid-hallplats-stenstan---ett-varmt-valkomnande-i-vinterkylan
-```
 
 ---
 
@@ -161,24 +112,78 @@ WEBSITE_FILTER=https://sundsvall.se/nyheter/nyhetsarkiv/2025-01-22-har-iordnings
   python crawler.py
   ```
 
-Once deployed as a systemd service, the crawler will run in the background according to the schedule defined in `SCHEDULE_MINUTES`.
+If you deploy as a systemd service (see below), the crawler automatically runs in the background on the schedule defined by `SCHEDULE_MINUTES`.
 
 ---
 
-## Requirements
+## Deployment (Linux Server)
 
-All Python package dependencies are in `requirements.txt`:
+For production use, you can deploy this script as a systemd service with the included `deploy.sh` script. This script will:
 
-```
-requests>=2.31.0
-python-dotenv>=1.0.0
-apscheduler>=3.10.0
-```
+- Copy your `crawler.py`, `requirements.txt`, and `.env` to the target directory
+- Create a **virtual environment** in that directory
+- Install the required Python packages
+- Generate a systemd service unit file
 
-Use a **virtual environment** to avoid potential conflicts with the system Python (PEP 668).
+1. **Ensure you have prerequisites**:
+    ```bash
+    sudo apt update
+    sudo apt install python3 python3-venv
+    # systemd is usually installed by default on most distros
+    ```
+
+2. **Clone the repository** (if not already cloned):
+    ```bash
+    git clone https://github.com/CCimen/IntricCrawlerScript.git
+    cd IntricCrawlerScript
+    ```
+
+3. **Prepare `.env`** (see [Configuration](#configuration)):
+    ```bash
+    cp .example.env .env
+    nano .env
+    ```
+
+4. **Run the deployment script**:
+    ```bash
+    chmod +x deploy.sh
+    ./deploy.sh ~/crawler
+    ```
+    - You can specify a custom path (e.g., `/opt/crawler`). By default, it uses a `deployment` folder in your current directory.
+    - **Note**: If you choose `/opt/crawler` or another directory outside your user’s home, ensure you have **write permissions** there (or create and change ownership beforehand). Otherwise, the script will fail with “Cannot write to target directory.”
+
+5. **Enable and start the service**:
+    1. **Copy the generated service file** into `/etc/systemd/system`:
+        ```bash
+        sudo cp ~/crawler/systemd/crawler.service /etc/systemd/system/
+        ```
+    2. **Reload systemd**:
+        ```bash
+        sudo systemctl daemon-reload
+        ```
+    3. **Enable** the service (starts on system boot):
+        ```bash
+        sudo systemctl enable crawler
+        ```
+    4. **Start** the service:
+        ```bash
+        sudo systemctl start crawler
+        ```
+
+6. **Check status and logs**:
+    - **Service status**:
+      ```bash
+      sudo systemctl status crawler
+      ```
+    - **View logs** (follow mode):
+      ```bash
+      sudo journalctl -u crawler -f
+      ```
 
 ---
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details.
+MIT License - See [LICENSE](LICENSE) for details.
+
+---
