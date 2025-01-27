@@ -87,7 +87,6 @@ This project includes a deployment script, `deploy.sh`, which **automatically cr
     cp .example.env .env
     nano .env  # Edit with your actual credentials/URLs
     ```
----
 
 4. **Run the deployment script**:
     ```bash
