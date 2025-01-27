@@ -4,11 +4,12 @@ A scheduled website crawler with enhanced error handling and status monitoring.
 
 ## Features
 
-- Scheduled crawling at configurable intervals
-- Website filtering capabilities
-- Detailed logging and error handling
-- Status monitoring with configurable check intervals
-- API integration with automatic retries
+- **Individual Website Scheduling**: Each website is crawled according to its own interval, so a long-running crawl on one site **doesn't block others**.
+- **Configurable scheduling** at fixed intervals (via `SCHEDULE_MINUTES`)
+- **Website filtering** capabilities
+- **Detailed logging** and error handling
+- **Status monitoring** with configurable check intervals
+- **API integration** with automatic retries
 
 ---
 
@@ -42,12 +43,13 @@ BASE_URL=https://sundsvall.backend.intric.ai/api/v1
 SCHEDULE_MINUTES=5
 
 # Websites to crawl (comma-separated)
-WEBSITE_FILTER=https://example.com/article
+WEBSITE_FILTER=https://sundsvall1.se,https://sundsvall2.se
 ```
 
 > **Note:** 
 > - Make sure your API key follows the expected format (if your code checks that it starts with `inp_`).  
 > - Adjust the `BASE_URL`, `SCHEDULE_MINUTES`, and `WEBSITE_FILTER` as needed.
+> - **Multiple URLs**: Separate them with commas. The script will create **individual** scheduled jobs for each site.
 
 ---
 
@@ -89,10 +91,12 @@ WEBSITE_FILTER=https://example.com/article
       ```bash
       python crawler.py --test
       ```
-    - **Scheduled crawling** (runs periodically):
+      > This runs the crawler **once** for each website in your `.env` and exits.
+    - **Scheduled crawling**:
       ```bash
       python crawler.py
       ```
+      > Each website is scheduled **separately** at the interval in `SCHEDULE_MINUTES`. Long-running crawls for one site will not block shorter crawls for others.
 
 6. **Deactivate the virtual environment** (when done):
     ```bash
@@ -107,12 +111,14 @@ WEBSITE_FILTER=https://example.com/article
   ```bash
   python crawler.py --test
   ```
+  Runs each matched website once in series, then exits.
 - **Scheduled mode**:
   ```bash
   python crawler.py
   ```
+  Creates a background scheduler that spawns **one job per website**. Each site runs at the configured interval (`SCHEDULE_MINUTES`). If a site’s crawl is still in progress when its next slot arrives, that site’s new crawl is deferred until the previous one completes. Other sites remain unaffected and run on schedule.
 
-If you deploy as a systemd service (see below), the crawler automatically runs in the background on the schedule defined by `SCHEDULE_MINUTES`.
+Once deployed as a systemd service (see below), the crawler automatically runs in the background on the schedule defined by `SCHEDULE_MINUTES`.
 
 ---
 
@@ -180,10 +186,10 @@ For production use, you can deploy this script as a systemd service with the inc
       sudo journalctl -u crawler -f
       ```
 
+After this, the **systemd service** runs in the background. Each website listed in your `WEBSITE_FILTER` will be crawled on its own schedule (every `SCHEDULE_MINUTES`).
+
 ---
 
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
-
----
