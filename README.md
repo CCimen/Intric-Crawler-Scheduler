@@ -1,195 +1,223 @@
-# IntricCrawlerScript
+# Intric Crawler Scheduler
 
-A scheduled website crawler with enhanced error handling and status monitoring.
+A Docker-based scheduler that helps you automatically crawl websites in Intric spaces at configurable intervals.
 
-## Features
+## Overview
 
-- **Individual Website Scheduling**: Each website is crawled according to its own interval, so a long-running crawl on one site **doesn't block others**.
-- **Configurable scheduling** at fixed intervals (via `SCHEDULE_MINUTES`)
-- **Website filtering** capabilities
-- **Detailed logging** and error handling
-- **Status monitoring** with configurable check intervals
-- **API integration** with automatic retries
+This application allows you to:
 
----
+- Schedule crawls for multiple users' Intric spaces
+- Configure different crawling intervals for each space
+- Select specific websites within a space or crawl all websites
+- Monitor crawling status through API and logs
+- Automatically detect new websites added to your spaces
 
-## Requirements
+The scheduler communicates with the Intric API (`https://sundsvall.backend.intric.ai`) to initiate website crawls at defined intervals, helping keep your knowledge base up-to-date automatically.
 
-- **Python 3** (with `python3-venv` installed for virtual environments)
-- **systemd** (for deployment on most modern Linux distros)
-- **pip** (to install Python packages)
-- For local usage: Ability to create and activate a virtual environment (`venv`)
-- For server deployment: Sufficient permissions to write to the target directory (e.g. `/opt/crawler` or any user-owned folder like `~/crawler`)
+## Installation
 
----
+### Prerequisites
+
+- Docker
+- Docker Compose
+
+### Setup
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/intric-crawler-scheduler.git
+   cd intric-crawler-scheduler
+   ```
+
+2. Copy and edit the example users.json file:
+
+   ```bash
+   cp example-users.json users.json
+   nano users.json  # Edit with your API keys and space configurations
+   ```
+
+3. Build and start the container:
+   ```bash
+   docker-compose build
+   docker-compose up -d
+   ```
 
 ## Configuration
 
-All application settings reside in a `.env` file. A sample configuration is provided:
+### Users.json Structure
 
-```bash
-cp .example.env .env
-nano .env
+Configure the `users.json` file with your Intric API keys and spaces:
+
+```json
+{
+  "users": [
+    {
+      "user_id": "user1",
+      "api_key": "inp_your_api_key_here",
+      "base_url": "https://sundsvall.backend.intric.ai/api/v1",
+      "spaces": [
+        {
+          "space_name": "space-name",
+          "schedule_minutes": 60,
+          "website_filter": ["https://example.com", "https://example.org"],
+          "crawl_all_space_websites": false
+        },
+        {
+          "space_id": "space-id-string",
+          "schedule_minutes": 120,
+          "crawl_all_space_websites": true
+        },
+        {
+          "space_name": "future-space",
+          "schedule_minutes": 60,
+          "website_filter": [],
+          "crawl_all_space_websites": true
+        }
+      ]
+    }
+  ]
+}
 ```
 
-The `.env` file holds necessary environment variables:
+### Configuration Options
 
-```env
-# Required
-API_KEY=xxxxx
-BASE_URL=https://sundsvall.backend.intric.ai/api/v1
+#### User Level Options
 
-# How often to run the crawler (in minutes)
-SCHEDULE_MINUTES=5
+| Option   | Description                             |
+| -------- | --------------------------------------- |
+| user_id  | Unique identifier for the user          |
+| api_key  | Your Intric API key (starts with inp\_) |
+| base_url | Intric API base URL                     |
+| spaces   | Array of space configurations           |
 
-# Websites to crawl (comma-separated)
-WEBSITE_FILTER=https://sundsvall1.se,https://sundsvall2.se
-```
+#### Space Level Options
 
-> **Note:** 
-> - Make sure your API key follows the expected format (if your code checks that it starts with `inp_`).  
-> - Adjust the `BASE_URL`, `SCHEDULE_MINUTES`, and `WEBSITE_FILTER` as needed.
-> - **Multiple URLs**: Separate them with commas. The script will create **individual** scheduled jobs for each site.
+| Option                   | Description                                   |
+| ------------------------ | --------------------------------------------- |
+| space_id                 | ID of the space to crawl                      |
+| space_name               | Name of the space (alternative to space_id)   |
+| schedule_minutes         | How often to run crawls (in minutes)          |
+| website_filter           | List of specific websites to crawl (optional) |
+| crawl_all_space_websites | If true, crawl all websites in the space      |
 
----
+You must provide either `space_id` or `space_name` for each space.
 
-## Quick Start (Local Development)
+### Future-Use Spaces
 
-> **Important:** Modern Linux distributions often protect the system Python installation. Installing packages with `pip` at the system level can trigger "externally-managed-environment" errors. Instead, use a **virtual environment**.
+You can add spaces with no websites (empty spaces) to your configuration. The system will periodically check for new websites added to these spaces and automatically start crawling them. This lets you:
 
-1. **Clone the repository**:
-    ```bash
-    git clone https://github.com/CCimen/IntricCrawlerScript.git
-    cd IntricCrawlerScript
-    ```
+1. Configure spaces now that you plan to populate later
+2. Add websites to spaces through the Intric interface
+3. Have them automatically discovered and crawled without restarting
 
-2. **Create and activate a virtual environment**:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-    - If `python3-venv` isn’t available, install it (e.g., on Ubuntu/Debian):
-      ```bash
-      sudo apt update
-      sudo apt install python3-venv
-      ```
-
-3. **Install Python dependencies**:
-    ```bash
-    pip install --upgrade pip  # optional but recommended
-    pip install -r requirements.txt
-    ```
-
-4. **Set up your environment (.env file)**:
-    ```bash
-    cp .example.env .env
-    nano .env  # Edit your configuration
-    ```
-
-5. **Test the script locally**:
-    - **Single (test) execution**:
-      ```bash
-      python crawler.py --test
-      ```
-      > This runs the crawler **once** for each website in your `.env` and exits.
-    - **Scheduled crawling**:
-      ```bash
-      python crawler.py
-      ```
-      > Each website is scheduled **separately** at the interval in `SCHEDULE_MINUTES`. Long-running crawls for one site will not block shorter crawls for others.
-
-6. **Deactivate the virtual environment** (when done):
-    ```bash
-    deactivate
-    ```
-
----
+To control how often the system checks for new websites, adjust the `WEBSITE_REFRESH_INTERVAL` environment variable in your docker-compose.yml file.
 
 ## Usage
 
-- **Single execution** (test mode):
+### Docker Commands
+
+Start the service:
+
+```bash
+docker-compose up -d
+```
+
+Start with debug logging:
+
+```bash
+LOG_MODE=debug docker-compose up -d
+```
+
+View logs:
+
+```bash
+docker-compose logs -f
+```
+
+Restart after updating users.json:
+
+```bash
+docker-compose restart
+```
+
+Stop the service:
+
+```bash
+docker-compose down
+```
+
+### Logging Modes
+
+The application supports two logging modes:
+
+- **Production Mode (Default)**: Shows minimal logs with periodic status summaries
+
   ```bash
-  python crawler.py --test
+  LOG_MODE=production docker-compose up -d
   ```
-  Runs each matched website once in series, then exits.
-- **Scheduled mode**:
+
+- **Debug Mode**: Shows detailed logs for troubleshooting
   ```bash
-  python crawler.py
+  LOG_MODE=debug docker-compose up -d
   ```
-  Creates a background scheduler that spawns **one job per website**. Each site runs at the configured interval (`SCHEDULE_MINUTES`). If a site’s crawl is still in progress when its next slot arrives, that site’s new crawl is deferred until the previous one completes. Other sites remain unaffected and run on schedule.
 
-Once deployed as a systemd service (see below), the crawler automatically runs in the background on the schedule defined by `SCHEDULE_MINUTES`.
+### Web Interface
 
----
+Access the API documentation:
 
-## Deployment (Linux Server)
+```
+http://localhost:8000/docs
+```
 
-For production use, you can deploy this script as a systemd service with the included `deploy.sh` script. This script will:
+This provides a Swagger UI where you can explore and test the API endpoints.
 
-- Copy your `crawler.py`, `requirements.txt`, and `.env` to the target directory
-- Create a **virtual environment** in that directory
-- Install the required Python packages
-- Generate a systemd service unit file
+### Key API Endpoints
 
-1. **Ensure you have prerequisites**:
-    ```bash
-    sudo apt update
-    sudo apt install python3 python3-venv
-    # systemd is usually installed by default on most distros
-    ```
+- `/config/{user_id}` - Set configuration for a user
+- `/start/{user_id}` - Start crawling for a user
+- `/stop/{user_id}` - Stop crawling for a user
+- `/test/{user_id}` - Run a one-time crawl
+- `/status/{user_id}` - Get status of a user's crawls
+- `/system/status-summary` - Generate a status summary
 
-2. **Clone the repository** (if not already cloned):
-    ```bash
-    git clone https://github.com/CCimen/IntricCrawlerScript.git
-    cd IntricCrawlerScript
-    ```
+## Monitoring
 
-3. **Prepare `.env`** (see [Configuration](#configuration)):
-    ```bash
-    cp .example.env .env
-    nano .env
-    ```
+In production mode, the system logs a status summary every 5 minutes showing:
 
-4. **Run the deployment script**:
-    ```bash
-    chmod +x deploy.sh
-    ./deploy.sh ~/crawler
-    ```
-    - You can specify a custom path (e.g., `/opt/crawler`). By default, it uses a `deployment` folder in your current directory.
-    - **Note**: If you choose `/opt/crawler` or another directory outside your user’s home, ensure you have **write permissions** there (or create and change ownership beforehand). Otherwise, the script will fail with “Cannot write to target directory.”
+- Running crawls
+- Completed crawls
+- Failed crawls
+- Last successful crawl time
 
-5. **Enable and start the service**:
-    1. **Copy the generated service file** into `/etc/systemd/system`:
-        ```bash
-        sudo cp ~/crawler/systemd/crawler.service /etc/systemd/system/
-        ```
-    2. **Reload systemd**:
-        ```bash
-        sudo systemctl daemon-reload
-        ```
-    3. **Enable** the service (starts on system boot):
-        ```bash
-        sudo systemctl enable crawler
-        ```
-    4. **Start** the service:
-        ```bash
-        sudo systemctl start crawler
-        ```
+View the status summary:
 
-6. **Check status and logs**:
-    - **Service status**:
-      ```bash
-      sudo systemctl status crawler
-      ```
-    - **View logs** (follow mode):
-      ```bash
-      sudo journalctl -u crawler -f
-      ```
+```bash
+docker-compose logs -f | grep "CRAWLER STATUS SUMMARY" -A 50
+```
 
-After this, the **systemd service** runs in the background. Each website listed in your `WEBSITE_FILTER` will be crawled on its own schedule (every `SCHEDULE_MINUTES`).
+## Environment Variables
 
----
+These variables can be set in your docker-compose.yml file:
 
-## License
+| Variable                 | Description                               | Default    |
+| ------------------------ | ----------------------------------------- | ---------- |
+| LOG_MODE                 | Logging mode (debug/production)           | production |
+| WEBSITE_REFRESH_INTERVAL | Minutes between checking for new websites | 60         |
+| TZ                       | Timezone for logs                         | UTC        |
 
-MIT License - See [LICENSE](LICENSE) for details.
+Example docker-compose.yml snippet:
+
+```yaml
+environment:
+  - TZ=Europe/Stockholm
+  - LOG_MODE=production
+  - WEBSITE_REFRESH_INTERVAL=60 # Check for new websites every 60 minutes
+```
+
+You can also modify these variables directly in the Dockerfile:
+
+```dockerfile
+ENV LOG_MODE=production
+ENV WEBSITE_REFRESH_INTERVAL=60
+```

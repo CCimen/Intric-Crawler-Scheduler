@@ -1,0 +1,34 @@
+{
+  "users": [
+    {
+      "user_id": "default_user",
+      "api_key": "inp_your_api_key_here",
+      "base_url": "https://sundsvall.backend.intric.ai/api/v1",
+      "spaces": [
+        {
+          "space_name": "knowledge_base",
+          "schedule_minutes": 60,
+          "website_filter": ["https://example.com", "https://docs.example.org"],
+          "crawl_all_space_websites": false
+        },
+        {
+          "space_id": "12345678-90ab-cdef-1234-567890abcdef",
+          "schedule_minutes": 120,
+          "crawl_all_space_websites": true
+        }
+      ]
+    },
+    {
+      "user_id": "another_user",
+      "api_key": "inp_another_api_key_here",
+      "base_url": "https://sundsvall.backend.intric.ai/api/v1",
+      "spaces": [
+        {
+          "space_name": "documentation",
+          "schedule_minutes": 30,
+          "crawl_all_space_websites": true
+        }
+      ]
+    }
+  ]
+}
