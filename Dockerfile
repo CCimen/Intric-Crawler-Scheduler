@@ -25,8 +25,8 @@ COPY users.json .
 
 # Default to production logging mode (can be overridden with environment variables)
 ENV LOG_MODE=production
-# Set the interval for checking for new websites (in minutes)
-ENV WEBSITE_REFRESH_INTERVAL=5
+# Set the interval for checking for new websites (in minutes) (default 30 min)
+ENV WEBSITE_REFRESH_INTERVAL=30
 
 # Document the ports
 EXPOSE 8000
