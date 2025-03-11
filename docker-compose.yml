@@ -4,11 +4,11 @@ services:
     image: crawler-api
     container_name: crawler-api
     ports:
-      - "8000:8000"  # FastAPI
+      - "8000:8000" # FastAPI
     volumes:
       - ./users.json:/app/users.json
     environment:
       - TZ=Europe/Stockholm
-      - LOG_MODE=production  # Set to 'debug' for verbose logging
-      - WEBSITE_REFRESH_INTERVAL=5  # Check for new websites every 60 minutes
+      - LOG_MODE=production # Set to 'debug' for verbose logging
+      - WEBSITE_REFRESH_INTERVAL=30 # Check for new websites every 30 minutes
     restart: unless-stopped

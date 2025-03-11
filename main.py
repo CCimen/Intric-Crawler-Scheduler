@@ -123,7 +123,7 @@ USER_JOB_STATUS: Dict[str, Dict[str, JobStatus]] = {}
 def generate_user_status_summary():
     """Generate a concise summary of all users' crawl job statuses for logs"""
     if LOG_MODE != "production":
-        return  # Only run in production mode
+        return {}  # Return empty dict instead of None
     
     # Add a timestamp to limit how often we generate summaries
     last_summary_time = getattr(generate_user_status_summary, "last_summary_time", datetime.min)
@@ -134,7 +134,7 @@ def generate_user_status_summary():
     time_since_last = (current_time - last_summary_time).total_seconds()
     
     if not was_called_from_endpoint and time_since_last < 60:
-        return
+        return {}
         
     # Reset the flag
     generate_user_status_summary.called_from_endpoint = False
@@ -142,10 +142,16 @@ def generate_user_status_summary():
     
     if not USER_CONFIGS:
         logger.info(f"{BOLD}{YELLOW}No users configured yet{RESET}")
-        return
+        return {"status": "no_users", "message": "No users configured yet"}
         
     summary_lines = [f"\n{BOLD}{CYAN}===== CRAWLER STATUS SUMMARY ====={RESET}"]
     summary_lines.append(f"{BOLD}{CYAN}Time: {current_time.strftime('%Y-%m-%d %H:%M:%S')}{RESET}")
+    
+    # Build structured summary data for API response alongside text summary
+    summary_data = {
+        "timestamp": current_time.isoformat(),
+        "users": {}
+    }
     
     # Group users by base user_id (before _space suffix)
     user_groups = {}
@@ -172,8 +178,26 @@ def generate_user_status_summary():
             else:
                 user_display = base_user_id
             
+            # Initialize user data in structured summary
+            if base_user_id not in summary_data["users"]:
+                summary_data["users"][base_user_id] = {}
+            
+            user_data = {
+                "space_name": space_name,
+                "space_id": config.space_id,
+                "website_count": 0,
+                "running_count": 0,
+                "completed_count": 0,
+                "failed_count": 0,
+                "latest_crawl": None,
+                "failed_sites": [],
+                "running_sites": []
+            }
+            
             if user_id not in USER_JOB_STATUS or not USER_JOB_STATUS[user_id]:
                 summary_lines.append(f"{BOLD}{YELLOW}User: {user_display} - No jobs running{RESET}")
+                user_data["status"] = "no_jobs"
+                summary_data["users"][base_user_id][space_name] = user_data
                 continue
                 
             # Count jobs by status
@@ -181,6 +205,7 @@ def generate_user_status_summary():
             failed_count = 0
             completed_count = 0
             website_count = len(USER_JOB_STATUS[user_id])
+            user_data["website_count"] = website_count
             
             # Check for actively running jobs (within last 2 minutes)
             active_threshold = current_time - timedelta(minutes=2)
@@ -194,13 +219,20 @@ def generate_user_status_summary():
                 elif status.status == "complete":
                     completed_count += 1
             
+            user_data["running_count"] = running_count
+            user_data["completed_count"] = completed_count
+            user_data["failed_count"] = failed_count
+            
             # Determine user's overall status color
             if failed_count > 0:
                 user_color = RED
+                user_data["status"] = "has_failures"
             elif running_count > 0:
                 user_color = GREEN
+                user_data["status"] = "running"
             else:
                 user_color = BLUE
+                user_data["status"] = "idle"
                 
             summary_lines.append(f"{BOLD}{user_color}User: {user_display}{RESET}")
             summary_lines.append(f"  Websites: {website_count} | Running: {running_count} | Completed: {completed_count} | Failed: {failed_count}")
@@ -214,6 +246,9 @@ def generate_user_status_summary():
             
             if latest_crawl:
                 time_since = (current_time - latest_crawl).total_seconds()
+                user_data["latest_crawl"] = latest_crawl.isoformat()
+                user_data["latest_crawl_seconds_ago"] = int(time_since)
+                
                 if time_since < 60:
                     time_display = f"{int(time_since)}s ago"
                 elif time_since < 3600:
@@ -241,6 +276,10 @@ def generate_user_status_summary():
                         
                 for site_name, error in unique_failures:
                     summary_lines.append(f"    - {site_name}: {error}")
+                    user_data["failed_sites"].append({
+                        "site_name": site_name,
+                        "error": error
+                    })
                     
             # Show currently running jobs
             if running_count > 0:
@@ -248,18 +287,34 @@ def generate_user_status_summary():
                 for site_id, status in USER_JOB_STATUS[user_id].items():
                     if (status.status in ("running", "queued")) and status.last_update and status.last_update > active_threshold:
                         duration = "Unknown"
+                        duration_seconds = None
                         if status.start_time:
                             duration_secs = (current_time - status.start_time).total_seconds()
+                            duration_seconds = int(duration_secs)
                             duration = f"{int(duration_secs // 60)}m {int(duration_secs % 60)}s"
                         # Show status (queued or running)
                         status_display = f"({status.status} for {duration})"
                         summary_lines.append(f"    - {status.site_name} {status_display}")
+                        
+                        user_data["running_sites"].append({
+                            "site_name": status.site_name, 
+                            "status": status.status,
+                            "duration_seconds": duration_seconds,
+                            "duration_display": duration,
+                            "run_id": status.run_id
+                        })
+            
+            # Add this user's data to the structured summary
+            summary_data["users"][base_user_id][space_name] = user_data
     
     summary_lines.append(f"{BOLD}{CYAN}===============================\n{RESET}")
     
     # Log this with special formatting that will always appear in console
     summary_message = "\n".join(summary_lines)
     logger.info(summary_message)
+    
+    # Return the structured summary data for API response
+    return summary_data
 
 # Add the function to APScheduler for periodic status updates
 def setup_status_logger(scheduler):
@@ -1314,8 +1369,14 @@ def health_check():
 def generate_status_summary():
     """Generate a status summary for all users"""
     generate_user_status_summary.called_from_endpoint = True
-    generate_user_status_summary()
-    return {"detail": "Status summary generated in logs"}
+    summary_data = generate_user_status_summary()
+    
+    # Return the structured summary in the response
+    return {
+        "detail": "Status summary generated",
+        "timestamp": datetime.now().isoformat(),
+        "summary": summary_data
+    }
 
 # ------------------- Application Startup/Shutdown -------------------
 @app.on_event("startup")

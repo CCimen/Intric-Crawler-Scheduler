@@ -26,7 +26,7 @@ The scheduler communicates with the Intric API (`https://sundsvall.backend.intri
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/intric-crawler-scheduler.git
+   git clone https://github.com/CCimen/intric-crawler-scheduler.git
    cd intric-crawler-scheduler
    ```
 
